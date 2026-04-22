@@ -11,3 +11,6 @@
 /target/
 dist/
 node_modules/
+
+# Nix output
+result
