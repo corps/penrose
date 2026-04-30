@@ -21,8 +21,8 @@
       in
       {
         packages = {
-          roger = pkgs.stdenv.mkDerivation (finalAttrs: {
-            pname = "roger";
+          default = pkgs.stdenv.mkDerivation (finalAttrs: {
+            pname = "penrose";
             version = "3.3.0";
 
             src = ./.;
@@ -60,19 +60,27 @@
               # Rebuild only the canvas native addon — yarnConfigHook uses --ignore-scripts
               # (other native addons like farmhash aren't needed for roger and have
               # node-gyp compatibility issues with newer Python)
+              echo 'canvas'
               npm rebuild canvas --verbose
 
-              # Generate nearley parsers for @penrose/core
+              echo 'nearleyc'
               cd packages/core
               nearleyc src/parser/Domain.ne > src/parser/DomainParser.ts
               nearleyc src/parser/Substance.ne > src/parser/SubstanceParser.ts
               nearleyc src/parser/Style.ne > src/parser/StyleParser.ts
 
-              # Build core (tsc), then roger (tsc)
+              echo 'tsc'
               tsc
               cd ../roger
               tsc
+              cd ../components
+              rm -rf src/stories
+              rm src/editing/TimelineTable.tsx
+              npm run build-parsers
+              npm run build
               cd ../..
+
+              echo 'done here'
 
               runHook postBuild
             '';
@@ -80,49 +88,55 @@
             installPhase = ''
               runHook preInstall
 
-              local packageOut="$out/lib/node_modules/@penrose/roger"
-              mkdir -p "$packageOut"
-
-              # Copy roger package
-              cp -r packages/roger/dist "$packageOut/dist"
-              cp -r packages/roger/bin "$packageOut/bin"
-              cp packages/roger/package.json "$packageOut/package.json"
-
               # Copy node_modules (contains compiled canvas native addon)
-              cp -r node_modules "$packageOut/node_modules"
+              mkdir -p $out/lib
+              cp -r node_modules "$out/lib/node_modules"
 
               # Remove all workspace symlinks (they point to packages/ dirs we didn't copy)
-              for link in "$packageOut/node_modules/@penrose"/*; do
+              for link in "$out/lib/node_modules/@penrose"/*; do
                 if [ -L "$link" ]; then
                   rm "$link"
                 fi
               done
               # Also remove any other top-level workspace symlinks
-              for link in "$packageOut/node_modules/penrose-vs" \
-                          "$packageOut/node_modules/penrose"*; do
+              for link in "$out/lib/node_modules/penrose-vs" \
+                          "$out/lib/node_modules/penrose"*; do
                 if [ -L "$link" ]; then
                   rm "$link"
                 fi
               done
 
-              # Remove broken symlinks in .bin
-              find "$packageOut/node_modules/.bin" -xtype l -delete 2>/dev/null || true
+              # Now re-add the three parts we care about.
+              local rogerOut="$out/lib/node_modules/@penrose/roger"
+              local componentsOut="$out/lib/node_modules/@penrose/components"
+              local coreOut="$out/lib/node_modules/@penrose/core"
 
-              # Install the workspace packages roger actually needs
-              mkdir -p "$packageOut/node_modules/@penrose/core"
-              cp packages/core/package.json "$packageOut/node_modules/@penrose/core/"
-              cp -r packages/core/dist "$packageOut/node_modules/@penrose/core/"
+              mkdir -p "$rogerOut"
+              ln -s $out/lib/node_modules $rogerOut/node_modules
+              mkdir -p "$componentsOut"
+              ln -s $out/lib/node_modules $componentsOut/node_modules
+              mkdir -p "$coreOut"
+              ln -s $out/lib/node_modules $coreOut/node_modules
 
-              # Create bin wrapper
+              cp -r packages/roger/dist "$rogerOut/dist"
+              cp -r packages/roger/bin "$rogerOut/bin"
+              cp packages/roger/package.json "$rogerOut/package.json"
+
+              cp -r packages/components/dist "$componentsOut/dist"
+              cp packages/components/package.json "$componentsOut/package.json"
+
+              cp -r packages/core/dist "$coreOut/dist"
+              cp packages/core/package.json "$coreOut/package.json"
+
+
+              find "$out/lib/node_modules/.bin" -xtype l -delete 2>/dev/null || true
+
               mkdir -p "$out/bin"
-              makeWrapper ${nodejs}/bin/node "$out/bin/roger" \
-                --add-flags "$packageOut/bin/run.js"
+              makeWrapper ${nodejs}/bin/node "$out/bin/roger" --add-flags "$rogerOut/bin/run.js"
 
               runHook postInstall
             '';
           });
-
-          default = self.packages.${system}.roger;
         };
 
         devShell =
