@@ -73,11 +73,11 @@
               tsc
               cd ../roger
               tsc
-              cd ../components
-              rm -rf src/stories
-              rm src/editing/TimelineTable.tsx
-              npm run build-parsers
-              npm run build
+              # cd ../components
+              # rm -rf src/stories
+              # rm src/editing/TimelineTable.tsx
+              # npm run build-parsers
+              # npm run build
               cd ../..
 
               echo 'done here'
@@ -108,13 +108,13 @@
 
               # Now re-add the three parts we care about.
               local rogerOut="$out/lib/node_modules/@penrose/roger"
-              local componentsOut="$out/lib/node_modules/@penrose/components"
+              # local componentsOut="$out/lib/node_modules/@penrose/components"
               local coreOut="$out/lib/node_modules/@penrose/core"
 
               mkdir -p "$rogerOut"
               ln -s $out/lib/node_modules $rogerOut/node_modules
-              mkdir -p "$componentsOut"
-              ln -s $out/lib/node_modules $componentsOut/node_modules
+              # mkdir -p "$componentsOut"
+              # ln -s $out/lib/node_modules $componentsOut/node_modules
               mkdir -p "$coreOut"
               ln -s $out/lib/node_modules $coreOut/node_modules
 
@@ -122,8 +122,8 @@
               cp -r packages/roger/bin "$rogerOut/bin"
               cp packages/roger/package.json "$rogerOut/package.json"
 
-              cp -r packages/components/dist "$componentsOut/dist"
-              cp packages/components/package.json "$componentsOut/package.json"
+              # cp -r packages/components/dist "$componentsOut/dist"
+              # cp packages/components/package.json "$componentsOut/package.json"
 
               cp -r packages/core/dist "$coreOut/dist"
               cp packages/core/package.json "$coreOut/package.json"
