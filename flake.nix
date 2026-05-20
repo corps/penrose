@@ -27,6 +27,8 @@
 
             src = ./.;
 
+            neededPackagesFile = ./needed-packages.txt.2;
+
             yarnOfflineCache = pkgs.fetchYarnDeps {
               yarnLock = finalAttrs.src + "/yarn.lock";
               hash = "sha256-z0+3gSvvtCm14IPfzSa1mlHtJfCeL7BFBPEEn926Ej4=";
@@ -80,41 +82,45 @@
               # npm run build
               cd ../..
 
-              echo 'done here'
-
               runHook postBuild
             '';
 
             installPhase = ''
               runHook preInstall
 
-              # Copy node_modules (contains compiled canvas native addon)
-              mkdir -p $out/lib
-              cp -r node_modules "$out/lib/node_modules"
+              mkdir -p $out/lib/node_modules
 
-              # Remove all workspace symlinks (they point to packages/ dirs we didn't copy)
-              for link in "$out/lib/node_modules/@penrose"/*; do
-                if [ -L "$link" ]; then
-                  rm "$link"
-                fi
-              done
-              # Also remove any other top-level workspace symlinks
-              for link in "$out/lib/node_modules/penrose-vs" \
-                          "$out/lib/node_modules/penrose"*; do
-                if [ -L "$link" ]; then
-                  rm "$link"
-                fi
-              done
+              while IFS= read -r pkg || [ -n "$pkg" ]; do
+                [[ -z "$pkg" || "$pkg" == \#* ]] && continue
 
-              # Now re-add the three parts we care about.
+                if [ -d "node_modules/$pkg" ]; then
+                  if [[ "$pkg" == @penrose/* ]]; then
+                    continue
+                  elif [[ "$pkg" == @* ]]; then
+                    mkdir -p "$out/lib/node_modules/$(dirname $pkg)"
+                    cp -r "node_modules/$pkg" "$out/lib/node_modules/$(dirname $pkg)"
+                  else
+                    cp -r "node_modules/$pkg" "$out/lib/node_modules/"
+                  fi
+                
+                else
+                  echo "Package $pkg not found in node_modules"
+                  exit 1
+                fi
+              done < $neededPackagesFile
+
+              # Also need .bin directory for executables
+              if [ -d "node_modules/.bin" ]; then
+                cp -r node_modules/.bin "$out/lib/node_modules/"
+              fi
+
+
+              # Now re-add the workspace packages we care about.
               local rogerOut="$out/lib/node_modules/@penrose/roger"
-              # local componentsOut="$out/lib/node_modules/@penrose/components"
               local coreOut="$out/lib/node_modules/@penrose/core"
 
               mkdir -p "$rogerOut"
               ln -s $out/lib/node_modules $rogerOut/node_modules
-              # mkdir -p "$componentsOut"
-              # ln -s $out/lib/node_modules $componentsOut/node_modules
               mkdir -p "$coreOut"
               ln -s $out/lib/node_modules $coreOut/node_modules
 
@@ -122,17 +128,17 @@
               cp -r packages/roger/bin "$rogerOut/bin"
               cp packages/roger/package.json "$rogerOut/package.json"
 
-              # cp -r packages/components/dist "$componentsOut/dist"
-              # cp packages/components/package.json "$componentsOut/package.json"
-
-              cp -r packages/core/dist "$coreOut/dist"
+              ls -la $coreOut
+              cp -r packages/core/dist $coreOut/dist
               cp packages/core/package.json "$coreOut/package.json"
-
-
-              find "$out/lib/node_modules/.bin" -xtype l -delete 2>/dev/null || true
 
               mkdir -p "$out/bin"
               makeWrapper ${nodejs}/bin/node "$out/bin/roger" --add-flags "$rogerOut/bin/run.js"
+
+              $out/bin/roger --help
+
+              # Clean up broken symlinks in .bin
+              find "$out/lib/" -xtype l -delete 2>/dev/null || true
 
               runHook postInstall
             '';
